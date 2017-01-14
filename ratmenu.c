@@ -36,7 +36,7 @@
  *
  * Provided initial implementation of -persist, inspiring
  * the version that actually made it into the code.
- * Rupert Levene 
+ * Rupert Levene
  * r.levene@lancaster.ac.uk
  * October, 2002
  *
@@ -71,6 +71,7 @@
 
 char version[] = "@(#) ratmenu version 2.3";
 
+#define SPECIAL_KEY_MARKER '^'
 #define FONT "9x15bold"
 #define	MenuMask (ExposureMask|StructureNotifyMask|KeyPressMask)
 #define CTL(c) (c - '`')
@@ -107,6 +108,7 @@ char *labelname;	/* window and icon name */
 
 char **labels;		/* list of labels and commands */
 char **commands;
+char *specialKey;
 int numitems;
 int startitem;          /* which item to highlight first */
 int curitem;
@@ -129,6 +131,79 @@ void spawn(char*);
 void usage(void);
 void xresources(void);
 void defaults(void);
+int isSpecialKey(char);
+char searchSpecialKey(char *);
+char getSpecialKey(char *);
+int matchSpecialKey(char, char *, int);
+
+int
+isSpecialKey(char key) {
+    char keyTable[] = {'a', 'c', 'd', 'e', 'h', 'k', 'l', 'o', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '\0'};
+    int LENGTH = 29;
+    int index = 0;
+    int foundFlag = 0;
+
+    while( index < LENGTH ) {
+        if(key == keyTable[index]) {
+            foundFlag = 1;
+            break;
+        }
+        index++;
+    }
+
+    return foundFlag;
+}
+
+char
+searchSpecialKey(char * label) {
+    int index = 0;
+    char prevChar = ' ';
+
+    while( index < 100 ) {
+        if(label[index] == '\0') {
+            return ' ';
+        }
+        if(prevChar == SPECIAL_KEY_MARKER) {
+            return label[index];
+        }
+        prevChar = label[index];
+        index++;
+    }
+
+    return ' ';
+}
+
+char
+getSpecialKey(char * str) {
+    char key = searchSpecialKey(str);
+
+    if(isSpecialKey(key) == 0) {
+        /* not special key */
+        key = ' ';
+    }
+
+    return key;
+}
+
+int
+matchSpecialKey(char key, char * keys, int length) {
+    int index = 0;
+
+    if(isSpecialKey(key) != 1) {
+        return -1;
+    }
+
+    while( index < length ) {
+        if(keys[index] == '\0') {
+            return -1;
+        }
+        if(keys[index] == key) {
+            return index;
+        }
+        index++;
+    }
+    return -1;
+}
 
 XFontSet XLoadQueryFontSet(Display *disp, const char *fontset_name)
 {
@@ -136,7 +211,7 @@ XFontSet XLoadQueryFontSet(Display *disp, const char *fontset_name)
   int  missing_charset_count;
   char **missing_charset_list;
   char *def_string;
-  
+
   fontset = XCreateFontSet(disp, fontset_name,
                            &missing_charset_list, &missing_charset_count,
                            &def_string);
@@ -232,8 +307,9 @@ main(int argc, char **argv)
 
 	labels   = (char **) malloc(numitems * sizeof(char *));
 	commands = (char **) malloc(numitems * sizeof(char *));
+	specialKey = (char *) malloc(numitems * sizeof(char *));
 
-	if (commands == NULL || labels == NULL) {
+	if (commands == NULL || labels == NULL || specialKey == NULL) {
 		fprintf(stderr, "%s: no memory!\n", progname);
 		exit(1);
 	}
@@ -241,6 +317,7 @@ main(int argc, char **argv)
 	for (j=0; i < argc; j++) {
 		labels[j]   = argv[i++];
 		commands[j] = argv[i++];
+		specialKey[j] = getSpecialKey(labels[j]);
 	}
 
 	dpy = XOpenDisplay(displayname);
@@ -375,6 +452,7 @@ run_menu(void)
 	for (;;) {
 		char keystr[10];
 		int keystr_len;
+		int specialItem;
 		XNextEvent(dpy, &ev);
 		switch (ev.type) {
 		case KeyPress:
@@ -407,6 +485,12 @@ run_menu(void)
 					key = XK_Left;
 					break;
 				}
+			}
+
+			/* process special key */
+			specialItem = matchSpecialKey(keystr[0], specialKey, numitems);
+			if(specialItem != -1) {
+				spawn(commands[specialItem]);
 			}
 
 			switch (key) {
@@ -532,7 +616,7 @@ redraw_snazzy (int curitem, int high, int wide, int fullredraw)
                 ty = i*high + font__ascent + 1;
                 XmbDrawString(dpy, menuwin, font, gc, tx, ty, labels[j], strlen(labels[j]));
 	}
-	XFillRectangle(dpy, menuwin, gc, 0, 0, wide, high); 
+	XFillRectangle(dpy, menuwin, gc, 0, 0, wide, high);
 }
 
 void
@@ -559,10 +643,10 @@ redraw_dreary (int curitem, int high, int wide, int fullredraw)
                 	ty = i*high + font__ascent + 1;
                 	XmbDrawString(dpy, menuwin, font, gc, tx, ty, labels[i+off], strlen(labels[i+off]));
 		}
-		XFillRectangle(dpy, menuwin, gc, 0, (curitem-off)*high, wide, high); 
+		XFillRectangle(dpy, menuwin, gc, 0, (curitem-off)*high, wide, high);
 	} else {
-		XFillRectangle(dpy, menuwin, gc, 0, (olditem-off)*high, wide, high); 
-		XFillRectangle(dpy, menuwin, gc, 0, (curitem-off)*high, wide, high); 
+		XFillRectangle(dpy, menuwin, gc, 0, (olditem-off)*high, wide, high);
+		XFillRectangle(dpy, menuwin, gc, 0, (curitem-off)*high, wide, high);
 	}
 	olditem = curitem;
 }
@@ -571,7 +655,7 @@ void
 xresources(void)
 {
 	char *res;
-	
+
 	if (bgcname == NULL) {
 		if ((res = XGetDefault(dpy, progname, "bgcolor")) != NULL ) {
 			bgcname = strdup(res);
