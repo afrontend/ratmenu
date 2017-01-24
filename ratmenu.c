@@ -138,8 +138,8 @@ int matchSpecialKey(char, char *, int);
 
 int
 isSpecialKey(char key) {
-    char keyTable[] = {'a', 'c', 'd', 'e', 'h', 'k', 'l', 'o', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '\0'};
-    int LENGTH = 29;
+    char keyTable[] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'i', 'm', 'n', 'o', 'p', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '\0'};
+    int LENGTH = 31;
     int index = 0;
     int foundFlag = 0;
 
